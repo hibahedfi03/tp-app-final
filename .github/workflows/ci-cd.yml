@@ -18,14 +18,13 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-       
 
-            - name: Build backend image
-  run: |
-    docker build \
-      -t spring-app \
-      -t ${{ secrets.DOCKERHUB_USERNAME }}/spring-app:latest \
-      ./springboot/app
+      - name: Build backend image
+        run: |
+          docker build \
+            -t spring-app \
+            -t ${{ secrets.DOCKERHUB_USERNAME }}/spring-app:latest \
+            ./springboot/app
 
       - name: Build frontend image
         run: |
@@ -39,16 +38,11 @@ jobs:
 
       - name: Push frontend image
         run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/angular-app:latest
-      - name: Start application with Docker Compose
+
+      - name: Test application with Docker Compose
         run: |
           docker compose up -d
           docker compose ps
-
-      - name: Wait for containers
-        run: sleep 20
-
-      - name: Check backend availability
-        run: curl -f http://localhost:8081 || exit 1
-
-      - name: Check frontend availability
-        run: curl -f http://localhost:4200 || exit 1
+          sleep 25
+          curl -f http://localhost:8081
+          curl -f http://localhost:4200
