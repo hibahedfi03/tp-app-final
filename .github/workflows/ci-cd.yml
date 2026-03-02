@@ -42,6 +42,11 @@ jobs:
           context: ./angular-app
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/angular-app:latest
-
+      - name: Tag images for docker-compose (local names)
+        run: |
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/springboot-app:latest
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/angular-app:latest
+          docker tag  ${{ secrets.DOCKERHUB_USERNAME }}/springboot-app:latest spring-app
+          docker tag  ${{ secrets.DOCKERHUB_USERNAME }}/angular-app:latest angular-app
       - name: Test Deployment
         run: docker compose up -d
