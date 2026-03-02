@@ -43,6 +43,28 @@ jobs:
         run: |
           docker compose up -d
           docker compose ps
-          sleep 25
+
+          echo "Waiting for backend (8081)..."
+          for i in {1..60}; do
+            if curl -fsS http://localhost:8081 >/dev/null; then
+              echo "Backend is UP"
+              break
+            fi
+            echo "Not ready yet ($i/60) ..."
+            sleep 2
+          done
+
+          # Fail if still not reachable
           curl -f http://localhost:8081
+
+          echo "Waiting for frontend (4200)..."
+          for i in {1..30}; do
+            if curl -fsS http://localhost:4200 >/dev/null; then
+              echo "Frontend is UP"
+              break
+            fi
+            echo "Not ready yet ($i/30) ..."
+            sleep 2
+          done
+
           curl -f http://localhost:4200
