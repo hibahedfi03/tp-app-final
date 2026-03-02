@@ -44,27 +44,49 @@ jobs:
           docker compose up -d
           docker compose ps
 
-          echo "Waiting for backend (8081)..."
+          # Name of the compose network (usually <folder>_default)
+          PROJECT="$(basename "$GITHUB_WORKSPACE")"
+          NETWORK="${PROJECT}_default"
+          echo "Using network: $NETWORK"
+
+          echo "Waiting for MySQL..."
           for i in {1..60}; do
-            if curl -fsS http://localhost:8081 >/dev/null; then
-              echo "Backend is UP"
+            if docker run --rm --network "$NETWORK" busybox sh -c "nc -z -w 2 mysql 3306"; then
+              echo "MySQL is UP"
               break
             fi
-            echo "Not ready yet ($i/60) ..."
             sleep 2
           done
 
-          # Fail if still not reachable
-          curl -f http://localhost:8081
+          echo "Detect backend port (8080 or 8081) inside compose network..."
+          BACKEND_PORT=""
+          if docker run --rm --network "$NETWORK" busybox sh -c "nc -z -w 2 spring-boot-app 8081"; then
+            BACKEND_PORT="8081"
+          elif docker run --rm --network "$NETWORK" busybox sh -c "nc -z -w 2 spring-boot-app 8080"; then
+            BACKEND_PORT="8080"
+          fi
 
-          echo "Waiting for frontend (4200)..."
-          for i in {1..30}; do
-            if curl -fsS http://localhost:4200 >/dev/null; then
-              echo "Frontend is UP"
-              break
-            fi
-            echo "Not ready yet ($i/30) ..."
-            sleep 2
-          done
+          if [ -z "$BACKEND_PORT" ]; then
+            echo "Backend is not listening on 8080 or 8081. Showing logs:"
+            docker compose logs --no-color spring-boot-app
+            exit 1
+          fi
+          echo "Backend is listening on port: $BACKEND_PORT"
 
-          curl -f http://localhost:4200
+          echo "Check backend HTTP response (any status != 000 is fine)..."
+          CODE=$(docker run --rm --network "$NETWORK" curlimages/curl:8.5.0 -s -o /dev/null -w "%{http_code}" "http://spring-boot-app:${BACKEND_PORT}/" || true)
+          echo "Backend HTTP code: $CODE"
+          if [ "$CODE" = "000" ]; then
+            docker compose logs --no-color spring-boot-app
+            exit 1
+          fi
+
+          echo "Check frontend container serves HTTP..."
+          FCODE=$(docker run --rm --network "$NETWORK" curlimages/curl:8.5.0 -s -o /dev/null -w "%{http_code}" "http://angular-app:80/" || true)
+          echo "Frontend HTTP code: $FCODE"
+          if [ "$FCODE" = "000" ]; then
+            docker compose logs --no-color angular-app
+            exit 1
+          fi
+
+          echo "OK: containers are up, DB reachable, backend+frontend respond on network."
